@@ -3,7 +3,7 @@ Code for various personal projects.
 
 
 /Physics 
-- Various programs for simulating physical systems including electrostatics, quantum algorithms, and tunnelling probabilities.
+- Programs for simulating physical systems including electrostatics, quantum algorithms, and tunnelling probabilities.
 
 /VillageGenerator
 - Program used to generate a procedurally generated village from a handdrawn line
