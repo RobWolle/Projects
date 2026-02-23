@@ -64,15 +64,16 @@ f = c/lambda_vacuum
 
 
 # Intensity loss:
-def get_I_n(I_0, k_n, lambda_n, x_i):  # This is a different k (extinction coeff)
-    alpha = 4*np.pi*k_n/lambda_n
-    I_n = I_0*np.exp(-alpha*x_i)
-    return I_n
+def get_I_absorption(k_n, lambda_vac, x_i):  # This is a different k (extinction coeff)
+    alpha = 4*np.pi*k_n/lambda_vac
+    I_absorption = np.exp(-alpha*x_i)
+    return I_absorption
 
 
 nx = 101    # Resolution for each domain
 x_all = np.zeros(1)
 E_all = np.zeros(1)
+I_all = np.zeros(1)
 x_starts = [0]
 phi_starts = [0]
 
@@ -92,17 +93,25 @@ for domain in Domains:
     
     
     E = np.zeros(nx)
+    I = np.zeros(nx)
     for  i in range(nx):
-        I_0 = E_0*np.cos(2*np.pi/lambda_n*x[i]-2*np.pi*phi_starts[d])         # E(x) = E_0.cos(kx) = I_0
-        E[i] = get_I_n(I_0, domain[2], lambda_n, x[i])  # I(x) = I_0.e^(-alpha.x)
+        E_vac = E_0*np.cos(2*np.pi/lambda_n*x[i]-2*np.pi*phi_starts[d])         # E(x) = E_0.cos(kx) = I_0
+        E[i] = E_vac*np.sqrt(get_I_absorption(domain[2], lambda_vacuum, x[i]))  # I(x) = I_0.e^(-alpha.x)
+        I[i] = E[i]**2
     E_all = np.append(E_all, E)
-    E_0 = get_I_n(E_0, domain[2], lambda_n, x[nx-1])
-    #print(E_0)
+    I_all = np.append(I_all, I)
+    E_0 = E[nx-1]
+    
 
     d=d+1
 
     
 plt.plot(x_all,E_all)
 
-plt.savefig('/workspaces/Projects/Physics/FiberModeling/output.png')
+plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputE.png')
+
+plt.clf()
+plt.plot(x_all,I_all)
+
+plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputI.png')
 
