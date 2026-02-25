@@ -8,31 +8,39 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.rcParams['figure.dpi']=200 # setting the dpi of outputted graphs.
 
-
-# Field strength E = E_0.sin(k.x - omega.t)
+"""
+Constants and conversion functions
+"""
+c = 299792458
 
 # k = 2pi/lambda, lamda changes in a material if f stays constant
 # f = v/lambda
 # v = c/n
-
-E_0 = 1
-
-c = 3*10**8
 
 def get_lambda_n(f, n, c):
     v = c/n
     lambda_n = v/f
     return lambda_n
 
-Air_n = 1.0003
-Air_k = 0.05
+"""
+Material Constants
+"""
+Air_n = 1.00027417
+Air_k = 0.005
 
 Al2O3_1um_n = 1.6171
 Al2O3_1um_k = 0
 
 TiN_1um_n = 1.7547
 TiN_1um_k = 3.4512
+TiN_1um_k = 0.4512
 
+"""
+Input Conditions
+"""
+Amplitude = 1               # Constant amplitude of intitial signal. 
+lambda_vacuum = 1*10**-6    # Desired vacuum wavelength of light.
+nx = 101                    # Resolution for each domain.
 
 # Define regions of material by defining only:
 # [0] = their widths <m> (to then call them in order to fill the space)
@@ -41,26 +49,22 @@ TiN_1um_k = 3.4512
 
 Domains = []
 
-Air_L = 5*10**-6
+Air_L = 0.8*10**-6
 Air = [Air_L, Air_n, Air_k]
 Domains.append(Air)
 
-Film1_L = 2.5*10**-6
+Film1_L = .5*10**-6
 Film1 = [Film1_L, Al2O3_1um_n, Al2O3_1um_k]
 Domains.append(Film1)
 
-Film2_L = 2.5*10**-6
+Film2_L = .1*10**-6
 Film2 = [Film2_L, TiN_1um_n, TiN_1um_k]
 Domains.append(Film2)
 
-print(Domains)
-
-
-lambda_vacuum = 1*10**-6
-
-
-f = c/lambda_vacuum
-
+Domains.append(Film1)
+Domains.append(Film2)
+Domains.append(Film1)
+Domains.append(Film2)
 
 
 # Intensity loss:
@@ -69,14 +73,14 @@ def get_I_absorption(k_n, lambda_vac, x_i):  # This is a different k (extinction
     I_absorption = np.exp(-alpha*x_i)
     return I_absorption
 
+E_0 = Amplitude
+f = c/lambda_vacuum
 
-nx = 101    # Resolution for each domain
 x_all = np.zeros(1)
 E_all = np.zeros(1)
 I_all = np.zeros(1)
 x_starts = [0]
 phi_starts = [0]
-
 d=0
 for domain in Domains:
     lambda_n = get_lambda_n(f, domain[1],c)
@@ -84,28 +88,32 @@ for domain in Domains:
     x_max = domain[0]
     x = np.linspace(x_min,x_max, nx)
 
+    hx = (x_max - x_min)/(nx-1)
     x_starts.append(x_max+x_starts[d]) # sets the start of the next values of x in the x_all list
-    #print(x+x_starts[d])
+    
     x_all = np.append(x_all, x+x_starts[d])
-    
-    phi_starts.append(x_max/lambda_n)
-    
-    
     
     E = np.zeros(nx)
     I = np.zeros(nx)
     for  i in range(nx):
-        E_vac = E_0*np.cos(2*np.pi/lambda_n*x[i]-2*np.pi*phi_starts[d])         # E(x) = E_0.cos(kx) = I_0
+        E_vac = E_0*np.cos(2*np.pi/lambda_n*x[i]+2*np.pi*phi_starts[d])         # E(x) = E_0.cos(kx) = sqrt(I_0)
         E[i] = E_vac*np.sqrt(get_I_absorption(domain[2], lambda_vacuum, x[i]))  # I(x) = I_0.e^(-alpha.x)
         I[i] = E[i]**2
+    
+    
     E_all = np.append(E_all, E)
     I_all = np.append(I_all, I)
-    E_0 = E[nx-1]
+    E_0 = E_0*np.sqrt(get_I_absorption(domain[2], lambda_vacuum, x[nx-1]))
+    phi_starts.append(phi_starts[d]+x_max/lambda_n)
     
-
+    
     d=d+1
 
-    
+E_all = np.delete(E_all, 0)
+I_all = np.delete(I_all, 0)
+x_all = np.delete(x_all, 0)
+
+
 plt.plot(x_all,E_all)
 
 plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputE.png')
