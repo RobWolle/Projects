@@ -33,14 +33,14 @@ Al2O3_1um_k = 0
 
 TiN_1um_n = 1.7547
 TiN_1um_k = 3.4512
-TiN_1um_k = 0.4512
+#TiN_1um_k = 0.4512
 
 """
 Input Conditions
 """
 Amplitude = 1               # Constant amplitude of intitial signal. 
 lambda_vacuum = 1*10**-6    # Desired vacuum wavelength of light.
-nx = 101                    # Resolution for each domain.
+nx = 1001                    # Resolution for each domain.
 
 # Define regions of material by defining only:
 # [0] = their widths <m> (to then call them in order to fill the space)
@@ -49,22 +49,22 @@ nx = 101                    # Resolution for each domain.
 
 Domains = []
 
-Air_L = 0.8*10**-6
+Air_L = .1*10**-6
 Air = [Air_L, Air_n, Air_k]
 Domains.append(Air)
 
-Film1_L = .5*10**-6
+Film1_L = .08*10**-6
 Film1 = [Film1_L, Al2O3_1um_n, Al2O3_1um_k]
-Domains.append(Film1)
 
-Film2_L = .1*10**-6
+Film2_L = .02*10**-6
 Film2 = [Film2_L, TiN_1um_n, TiN_1um_k]
-Domains.append(Film2)
 
-Domains.append(Film1)
-Domains.append(Film2)
-Domains.append(Film1)
-Domains.append(Film2)
+layers = 5
+
+for i in range (layers):
+    Domains.append(Film1)
+    Domains.append(Film2)
+
 
 
 # Intensity loss:
@@ -106,7 +106,8 @@ for domain in Domains:
     E_0 = E_0*np.sqrt(get_I_absorption(domain[2], lambda_vacuum, x[nx-1]))
     phi_starts.append(phi_starts[d]+x_max/lambda_n)
     
-    
+    print(x_starts[d])
+    print(E)
     d=d+1
 
 E_all = np.delete(E_all, 0)
