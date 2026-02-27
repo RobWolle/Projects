@@ -9,15 +9,27 @@ import matplotlib.pyplot as plt
 plt.rcParams['figure.dpi']=200 # setting the dpi of outputted graphs.
 
 """
+Printing and utility functions
+"""
+def print_time(section_name, begin_time,stop_time, decimals):
+    print(section_name + ' took ' + str(round(stop_time-begin_time,decimals)) + ' s')
+
+"""
 Constants and conversion functions
 """
 c = 299792458
 h = 6.62607015*10**-34  # Planck Constant in Si
 k_B = 1.380649*10**-23  # Boltzmann Constant in Si
 
+
 # k = 2pi/lambda, lamda changes in a material if f stays constant
 # f = v/lambda
 # v = c/n
+
+def get_Kelvin(temp):
+    # Input temperature in Celsius
+    K = temp + 273.15
+    return K
 
 def get_lambda_n(f, n):
     v = c/n
@@ -38,6 +50,9 @@ def get_I_absorption(k_n, lambda_vac, x_i):  # This is a different k (extinction
 """
 Material Constants
 """
+#Initialize time:
+start = time.time()
+
 Air_n = 1.00027417
 Air_k = 0.005
 
@@ -73,10 +88,13 @@ for i in range (layers):
     Domains.append(Film2)
 
 
+amplitude_time = time.time()
+print_time("Initializing", start, amplitude_time, 4)
 
 """
 Input Conditions
 """
+
 
 Amplitude = 1               # Constant amplitude of intitial signal. 
 lambda_vacuum = 1*10**-6    # Desired vacuum wavelength of light.
@@ -95,7 +113,7 @@ def E_at_lambda(Domains, Amplitude, lambda_vacuum, resolution):
     phi_starts = [0]
     d=0
     for domain in Domains:
-        lambda_n = get_lambda_n(f, domain[1],c)
+        lambda_n = get_lambda_n(f, domain[1])
         x_min = 0
         x_max = domain[0]
         x = np.linspace(x_min,x_max, nx)
@@ -123,20 +141,69 @@ def E_at_lambda(Domains, Amplitude, lambda_vacuum, resolution):
     return E_all, I_all, x_all
 
 
-E_all, I_all, x_all = E_at_lambda(Domains, Amplitude, lambda_vacuum, resolution)
+"""
+Wavelength-dependent intensity input parameters
+"""
+Wavelength_dependent = True         # Set to false if you want intensity at just one input wavelength
+Wavelength_single = 1*10**-6        # Set to the desired input wavelength if you only want intensity at a single wavelength.
 
-plt.plot(x_all,E_all)
+Thermal_source = True               # Set to false if you do not want to approximate a black body light source
+#^ This may need to be switched to a selector for several standard wavelength-dependent light sources
+Temperature = get_Kelvin(300)       # temperature in Kelvin
 
+# Input wavelength range and resolution desired:
+wavelength_min = 0
+wavelength_max = 10*10**-6
+wavelength_resolution = 101
+
+# Bookkeeping and avoiding dividing by 0:
+lx = (wavelength_max - wavelength_min)/(wavelength_resolution-1)
+wavelength_min = wavelength_min+lx
+wavelength_max = wavelength_max+lx
+wavelengths = np.linspace(wavelength_min,wavelength_max, wavelength_resolution)
+Amplitudes = np.zeros(wavelength_resolution)+Amplitude
+
+# Setting Amplitude over wavelength range:
+if Thermal_source == True:
+    for j in range(wavelength_resolution):
+        Amplitudes[j] = get_BoltzmannLaw(wavelengths[j], Temperature)
+#^ This is not as efficient as calling this in the same loop that calculates the E for each wavelength below.
+#^ It instead makes a single conditional check instead of once per loop.
+
+wavelengthdependent_time = time.time()
+print_time("Calculating amplitudes", amplitude_time,wavelengthdependent_time, 4)
+
+# For single wavelengths:
+if Wavelength_dependent == False:
+    wavelengths[0] = Wavelength_single
+
+# Performing the calculation once to initiate the arrays:
+lambda_vacuum = wavelengths[0]
+E_total, I_total, x_total = E_at_lambda(Domains, Amplitudes[0], lambda_vacuum, resolution)
+
+# Iterating for each wavelength in range:
+if Wavelength_dependent == True:
+    for j in range(1, wavelength_resolution):
+        E_j, I_j, dump = E_at_lambda(Domains, Amplitudes[j], wavelengths[j], resolution)
+        E_total = E_total + E_j
+        I_total = I_total + I_j
+
+plotting_time = time.time()
+print_time("Calculating wavelength-dependent intensities", wavelengthdependent_time,plotting_time, 4)
+
+
+plt.plot(x_total,E_total)
 plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputE.png')
-
 plt.clf()
-plt.plot(x_all,I_all)
 
+plt.plot(x_total,I_total)
 plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputI.png')
+plt.clf()
 
-"""
-Can easily be extended to sum intensity over a variety of wavelengths. 
-Might need to make everything after the domain inputs into a function.
-Then, I can iterate over a linspace of wavelengths and add each resulting E_all, then displaying over all wavelengths.
-There probably needs to also be a way to modify the E_all intensity at a particular wavelength according to a distribution of lightsource wavelength-dependent intensity.
-"""
+if Thermal_source == True:
+    plt.plot(wavelengths, Amplitudes)
+    plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputThermalSource.png')
+
+end_time = time.time()
+print_time("Plotting", plotting_time, end_time, 4)
+
