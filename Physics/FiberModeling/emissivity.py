@@ -56,6 +56,19 @@ for k in range(wavelength_resolution):
 
 n_lambda = placeholder_distribution
 
+
+"""
+This next section attempts to calculate the Kramers-Kronig relation for k(lambda).
+k(lambda) = -2.lambda/pi * int_0^inf[(n(lambda')-1)/(lambda^2 - lambda'^2)dlambda']
+    The residue of the pole at lambda = lambda' is -[n(lambda) - 1]/(2.lambda)
+This means k(lambda) = [n(lambda) - 1]/pi * int_0^inf[(n(lambda')-1)/(lambda^2 - lambda'^2)dlambda']
+This isn't normalized properly. I think this is because in the conversion from frequency to wavelength, I'm missing a factor of c
+    It's also not normalized because n is only known on a small region. 
+        n --> 1 at lambda = infinity, so n - 1 should converge to 0.
+        This fact might be aided by something like an exponential decay. 
+        Depending on the tail of the decay, it seems like the integral should converge to a number around 100, which contributes a larger integral factor
+"""
+
 k_lambda = np.zeros(wavelength_resolution)
 
 for k in range(wavelength_resolution):
@@ -66,9 +79,9 @@ for k in range(wavelength_resolution):
         else:
             y = (n_lambda[s]-1)/(1-(wavelengths[s]/wavelengths[k])**2)
         integral = integral + y*lx
-    P = 1/c
-    k_lambda[k] = -2*integral/(np.pi*wavelengths[s])*P
-    print(k_lambda[k])
+    Correction = 200/c
+    k_lambda[k] = (n_lambda[k]-1)/np.pi*integral*Correction       
+    
     
 
 """
@@ -79,6 +92,39 @@ subportion_k = round(wavelength_resolution*.7)
 plt.plot(wavelengths[:subportion_k],n_lambda[:subportion_k])
 plt.plot(wavelengths[:subportion_k],k_lambda[:subportion_k])
 
+plt.plot(wavelengths,n_lambda)
+plt.plot(wavelengths,k_lambda)
+
 plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputEmissivity.png')
 plt.clf()
 
+
+"""
+Calculating Reflectance and Transmission
+"""
+
+def get_R(n, k):
+    R =  ((n-1)**2 + k**2)/((n+1)**2+k**2)
+    return R
+
+
+def get_T(k, wavelengths_array, thickness):
+    T = np.exp(-4*np.pi*k*thickness/wavelengths_array)
+    return T
+
+def get_emissivity(T, R):
+    emissivity = (1-R)*(1-T)/(1-R*T)
+    return emissivity
+
+
+thickness = 0.1*10**-6
+
+R_lambda = get_R(n_lambda,k_lambda)
+T_lambda = get_T(k_lambda, wavelengths, thickness)
+
+emissivity_lambda = get_emissivity(T_lambda,R_lambda)
+
+plt.plot(wavelengths,emissivity_lambda)
+
+plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputEmissivity2.png')
+plt.clf()
