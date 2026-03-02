@@ -128,3 +128,34 @@ plt.plot(wavelengths,emissivity_lambda)
 
 plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputEmissivity2.png')
 plt.clf()
+
+
+"""
+Intensity making it to interface = T(k,lambda)
+Proportion reflected back at interface = R(n,k,lambda)
+
+Only thing that matters is total emissivity,
+    which depends on intensity of light leaving and also how much light makes it through.
+
+R,T depends on the properties of the material on the other side of a boundary.
+Data structure:
+Array of Intensity, propagation direction, and layer.
+
+Only branches that matter are ones that make it to the surface or through,
+    but for simulation purposes we should just do raw intensity at all positions.
+
+Layer object tells you to add this to reflected total or transmitted total
+    (in layer [0], out layer [max-1])
+    This works as each object in the Domains structure, which also stores thickness and mat. properties
+
+Still ends up being recursive:
+    For each layer, call the "calculate E" function.
+    If on T path:
+        Call calc_E(E_0 = transmitted intensity)
+        Iterate layer location.
+        Break if layer location ends.
+    If intensity > 0 threshold AND on R path:
+        Call calc_E(E_0 = Reflected intensity)
+        Iterate layer location
+    
+"""
