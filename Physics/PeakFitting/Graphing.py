@@ -21,7 +21,10 @@ def make_DataArray(delimiter, data_columns, data_start, file_path):
     last_break = data_start
     for char in range(data_start,len(data)):
         if data[char] == delimiter or data[char] == '\n':
-            data_values.append(float(data[last_break:char]))
+            if data[last_break:char] == '':     # Empty data blocks are saved as 0
+                data_values.append(0)
+            else:
+                data_values.append(float(data[last_break:char]))
             last_break = char+1
 
     # We can use the number of data points divided by number of columns to get the number of rows of data
