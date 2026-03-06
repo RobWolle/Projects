@@ -24,9 +24,10 @@ def get_Kelvin(temp):
     return K
 
 def get_lambda_n(f, n):
-    v = c/n
+    """v = c/n
     lambda_n = v/f
-    return lambda_n
+    return lambda_n"""
+    return c/(f*n)
 
 def get_BoltzmannLaw(wavelength,T):
     # This function returns the radiance of a black body at a given wavelength and temperature
@@ -50,9 +51,65 @@ def get_KramersKronigRelation_k_from_n(n_lambda,wavelengths, wavelength_resoluti
         C = correction/c
         k_lambda[k] = (n_lambda[k]-1)/np.pi*integral*C       
 
+"""
+Printing and utility functions
+"""
+
+class Timer:
+    def __init__(self):
+        self.initial_time = time.time()
+        self.event_times = [self.initial_time]
+        self.event_names = ['start']
+        self.current_event = 0
+        self.decimals = '5'
+
+    def timeTaken(self, event_name='', do_print = True,time_since='last', decimals=5):
+        self.decimals = decimals
+        self.current_event +=1
+        self.event_times.append(time.time())
+        self.event_names.append(event_name)
+        current_time = self.event_times[self.current_event]
+        
+        prefix = event_name
+        if do_print == True:
+            if  prefix == '':
+                prefix = "Event " + str(self.current_event)
+            if time_since == 'start':
+                last_time = self.initial_time
+            else:
+                last_time = self.event_times[self.current_event-1]
+            print(prefix + " took " + str(round(current_time-last_time,self.decimals)) + ' s')
+    
+    def printTimes(self, time_since='last', decimals=5):
+        self.decimals = decimals
+        print("\nThere were " + str(self.current_event) + " time"+ printPlural(self.current_event) + " taken:")
+        for t in range(1,self.current_event+1):
+            current_time = self.event_times[t]
+            prefix = self.event_names[t]
+            if  prefix == '':
+                prefix = "Event " + str(t)
+            if time_since == 'start':
+                last_time = self.initial_time
+            else:
+                last_time = self.event_times[t-1]
+            print(prefix + " took " + str(round(current_time-last_time,self.decimals)) + ' s')
+        print('')
+
+    def help(self):
+        print("To use the timer, use the timeTaken() method.")
+        print("timeTaken() has a few options for printing the time ellapsed:")
+        print(" > do_print is a boolean that enables or disables printing the time.")
+        print("     do_print is True by default.")
+        print(" > time_since is a setting that determines what time is printed by the method.")
+        print("     time_since = 'last' (default setting) means the printed time is the time elapsed since the last timeTaken() call.")
+        print("     time_since = 'start' means the printed time is the time elapsed since the Timer object was created.")
+        print(" > event_name is a name given to the current time event. This is an optional setting that determines how the events are printed.")
+        print(" > decimals determines the number of significant figures displayed.")
+        print("     decimals = 5 by default.")
+
 def printPlural(number):
     if number == 1:
-        return
+        return ''
     else:
         return 's'
 
@@ -113,6 +170,8 @@ def LERP(array):
     new_array[new_length-1] = array[len(array)-1]
     return new_array
 
+Timer = Timer()
+
 # User inputs:
 delimiter = ','
 data_columns = 6
@@ -120,21 +179,17 @@ data_start = 0    #character position at which the data begins
 file_path = "/workspaces/Projects/Physics/FiberModeling/n and k fits - TiN and Al2O3.csv"
 DataArray = np.array(make_DataArray(delimiter, data_columns, data_start, file_path))
 
-wavelengths_original = DataArray[:,0]*10**-6
-wavelengths = LERP(wavelengths_original)
+wavelengths = DataArray[:,0]*10**-6
+TiN_n = DataArray[:,1]
+TiN_k = DataArray[:,2]
+Al2O3_n = DataArray[:,4]
+Al2O3_k = DataArray[:,5]
+
 wavelength_resolution = len(wavelengths)
 
 
 
-TiN_n_1 = DataArray[:,1]
-TiN_n = LERP(TiN_n_1)
-TiN_k_1 = DataArray[:,2]
-TiN_k = LERP(TiN_k_1)
 
-Al2O3_n_1 = DataArray[:,4]
-Al2O3_n = LERP(Al2O3_n_1)
-Al2O3_k_1 = DataArray[:,5]
-Al2O3_k = LERP(Al2O3_k_1)
 
 
 # Material n and k must be arrays which contain values at every wavelength in wavelengths[]
@@ -195,6 +250,20 @@ class Material:
         material.k = k
         material.R = ((n-1)**2 + k**2)/((n+1)**2+k**2)
 
+    def plot_material_property(material, property, wavelengths):
+        if property == 'n':
+            y = material.n
+        elif property == 'k':
+            y = material.k
+        elif property == 'R':
+            y = material.R
+        else:
+            print("Material.plot_material_property() failed. The only valid property names are 'n', 'k', and 'R'.")
+            return
+        plt.plot(wavelengths,y)
+        plt.savefig('/workspaces/Projects/Physics/FiberModeling/output' + material.name + property + '.png')
+        plt.clf()
+
 class Layer:
     def __init__(layer, thickness, material):
         layer.thickness = thickness
@@ -210,14 +279,14 @@ class Domains:
         self.measure_thickness = 0
         self.bulk_thickness = 0
         self.total_thickness = 0
-        
+        self.Xaxis = 'The Xaxis has not been made yet. Create a Settings object before retrieving this array.'
 
     def info(self):
         print("This set of domains has " + str(self.layer_count) + " total layer" + printPlural(self.layer_count) + ":")
         if self.measure_layer_count > 0:
             print("     > " + str(self.measure_layer_count) + " measure layer" + printPlural(self.measure_layer_count) + " with thickness " + f"{self.measure_thickness*10**6:.2e}" + " um")
         if self.layer_count - self.measure_layer_count > 0:
-            print("     > " + str(self.layer_count-self.measure_layer_count) + " bulk layer" + printPlural(self.measure_layer_count)+ " with total bulk thickness " + f"{(self.bulk_thickness)*10**6:.2e}" + " um")
+            print("     > " + str(self.layer_count-self.measure_layer_count) + " bulk layer" + printPlural(self.layer_count-self.measure_layer_count)+ " with total bulk thickness " + f"{(self.bulk_thickness)*10**6:.2e}" + " um")
 
     def AddLayer(self, thickness, Material):
         layer = Layer(thickness, Material)
@@ -247,10 +316,10 @@ class Domains:
         block_end = input_block[1]+1
 
         block_size = block_end - block_start
-        print("Repeating the following " + str(block_size) + " layers " + str(number) + " more times:")
+        print("Repeating the following " + str(block_size) + " layer" + printPlural(block_size) + " " + str(number) + " more time" + printPlural(number) + ":")
         for j in range(block_start,block_end):
             self.printLayer(j)
-
+        print('')
         for i in range(number):
             for j in range(block_start,block_end):
                 layer = self.domains[j]
@@ -323,14 +392,9 @@ Domains.AddLayer(.5*10**-7, TiN)
 Domains.RepeatAdd(9)
 Domains.AddMeasureLayer(wavelengths, Air)
 
-print(Domains.blocks)
-print(Domains.getLayer_property(0,'n',0))
-print(Domains.layer_count)
-Domains.printLayer(Domains.layer_count-2)
-Domains.printLayer(Domains.layer_count-1)
 Domains.info()
 
-
+Timer.timeTaken('Domains')
 
 
 
@@ -351,95 +415,46 @@ def get_I_absorption(k_n, lambda_vac, x_i):  # This is a different k (extinction
 
 
 """
-SETTING UP MATERIAL DOMAINS
+SETTINGS
+
+It seems like wavelength_resolution should be contained in Settings,
+    but it's kind of awkward to do that.
+    Without that, we need three total things:
+        1. Domains
+        2. Settings
+        3. wavelength_resolution
 """
-
-Domains = []
-
-
-# The air layers are meant to determine the reflected intensity vs transmitted intensity, 
-#   so they should be thick enough to contain one peak of any input wavelength.
-#   This can be calculated as half of the longest wavelength in the wavelenths[] array,
-#   since this will certainly contain 1 peak.
-last_wavelength_index = wavelength_resolution-1
-Air_t = 7.5*wavelengths[last_wavelength_index]
-Air = [Air_t, Air_n, Air_k, get_R(Air_n, Air_k)]
-
-
-Film1_t = .05*10**-6
-Film1 = [Film1_t, Al2O3_n, Al2O3_k, get_R(Al2O3_n, Al2O3_k)]
-
-Film2_t = .05*10**-6
-Film2 = [Film2_t, TiN_n, TiN_k, get_R(TiN_n, TiN_k)]
-
-Film3_t = .08*10**-6
-Film3 = [Film3_t, Al2O3_n, Al2O3_k, get_R(Al2O3_n, Al2O3_k)]
-
-Film4_t = .02*10**-6
-Film4 = [Film4_t, TiN_n, TiN_k, get_R(TiN_n, TiN_k)]
-
-Film5_t = .07*10**-6
-Film5 = [Film5_t, Al2O3_n, Al2O3_k, get_R(Al2O3_n, Al2O3_k)]
-
-Film6_t = .03*10**-6
-Film6 = [Film6_t, TiN_n, TiN_k, get_R(TiN_n, TiN_k)]
-
-# Begin with an Air layer:
-Domains.append(Air)    
-
-# Add layers of alternating Film1 and Film2 pairs:
-layers = 8             
-for i in range(layers):
-
-    Domains.append(Film3)
-    Domains.append(Film4)
-
-# Add layers of alternating Film3 and Film4 pairs:
-layers = 5             
-for i in range(layers):
-
-    Domains.append(Film5)
-    Domains.append(Film6)
-
-layers = 10          
-for i in range(layers):
-
-    Domains.append(Film1)
-    Domains.append(Film2)
-
-# End with a layer of Air:
-Domains.append(Air)         # This layer allows us to calculate the total transmission
 
 
 Amplitude = 1               # Constant amplitude of intitial signal. 
-position_resolution = 101 
+position_resolution = 51 
+sensitivity = 10**-4
+Settings = Settings(Amplitude, position_resolution, sensitivity, Domains)
 
 
-
-def calc_E_through_layer(E_all, resolution, Amplitude, direction, phase, Domains, layer, wavelengths, wavelength_index):
+def calc_E_through_layer(E_all, Amplitude, direction, phase, Domains, layer, Settings, wavelengths, wavelength_index):
     lambda_vacuum = wavelengths[wavelength_index]
     
-    nx = resolution
+    nx = Settings.position_resolution
     E_0 = Amplitude   
-    E = np.zeros(nx)
     f = c/lambda_vacuum
-
-    x_max = Domains[layer][0]
-    n = Domains[layer][1][wavelength_index]
-    k = Domains[layer][2][wavelength_index]
+    
+    x_max = Domains.getLayer_property(layer,'thickness')
+    n = Domains.getLayer_property(layer,'n',wavelength_index)
+    k = Domains.getLayer_property(layer,'k',wavelength_index)
     
     lambda_n = get_lambda_n(f, n)
-
     x_min = 0
     x = np.linspace(x_min,x_max, nx)
-    for  i in range(nx):
-        E_vac = E_0*np.cos(2*np.pi/lambda_n*x[i]+2*np.pi*phase)         # E(x) = E_0.cos(kx) = sqrt(I_0)
-        E[i] = E_vac*np.sqrt(get_I_absorption(k, lambda_vacuum, x[i]))  # I(x) = I_0.e^(-alpha.x)
-
+    
+    E_vac = E_0*np.cos(2*np.pi/lambda_n*x+2*np.pi*phase)         # E(x) = E_0.cos(kx) = sqrt(I_0)
+    E = E_vac*np.sqrt(get_I_absorption(k, lambda_vacuum, x))  # I(x) = I_0.e^(-alpha.x)
+    
     E_resulting = np.ndarray.copy(E_all)
+
     if direction == 1:
         E_resulting[layer*nx:(layer+1)*nx] = E_all[layer*nx:(layer+1)*nx] + E
-    if direction == -1:
+    elif direction == -1:
         E_reversed = E[::-1]
         E_resulting[layer*nx:(layer+1)*nx] = E_all[layer*nx:(layer+1)*nx] + E_reversed
 
@@ -447,85 +462,61 @@ def calc_E_through_layer(E_all, resolution, Amplitude, direction, phase, Domains
     resulting_phase = phase + x_max/lambda_n
 
     return E_resulting, resulting_Amplitude, resulting_phase
-   
-def at_boundary(sensitivity, E_domains, position_resolution, boundary_Amplitude, propagation_direction, boundary_phase, Domains, current_layer, wavelengths,wavelength_index,branches):
-    n_from = Domains[current_layer][3][wavelength_index]
-    current_layer = current_layer + propagation_direction
+
+
+def at_boundary(E_domains, boundary_Amplitude, propagation_direction, boundary_phase, Settings, Domains, current_layer, wavelengths,wavelength_index,branches):
+    n_from = Domains.getLayer_property(current_layer, 'n',wavelength_index)
+    current_layer += propagation_direction
     # if (condition that allows transmission):
-    if current_layer >= 0 and current_layer < len(Domains) and boundary_Amplitude > sensitivity:
-        n_to = Domains[current_layer][3][wavelength_index]
+    if current_layer >= 0 and current_layer < Domains.layer_count-1 and boundary_Amplitude > Settings.sensitivity:
+        n_to = Domains.getLayer_property(current_layer, 'n',wavelength_index)
     #   transmission
-        branches = branches + 1
+        branches += 1
         # As far as I can tell, T = (boundary intensity - R)
-        reflected_Amplitude = boundary_Amplitude*Domains[current_layer][3][wavelength_index]  #first, set intensity of reflection when hitting the layer boundary
+        reflected_Amplitude = boundary_Amplitude*Domains.getLayer_property(current_layer, 'R',wavelength_index)  #first, set intensity of reflection when hitting the layer boundary
         transmitted_Amplitude = boundary_Amplitude - reflected_Amplitude
-        E_domains, transmit_Amplitude, transmit_phase = calc_E_through_layer(E_domains, position_resolution, transmitted_Amplitude, propagation_direction,boundary_phase,Domains,current_layer,wavelengths,wavelength_index)
-        E_domains,branches = at_boundary(sensitivity, E_domains, position_resolution, transmit_Amplitude, propagation_direction, transmit_phase, Domains, current_layer, wavelengths,wavelength_index,branches)
+        #                                                                   E_all,          Amplitude,          direction,          phase,      Domains,    layer,    Settings, wavelengths, wavelength_index
+        E_domains, transmit_Amplitude, transmit_phase = calc_E_through_layer(E_domains, transmitted_Amplitude, propagation_direction,boundary_phase,Domains,current_layer,Settings, wavelengths,wavelength_index)
+        #                               (E_domains, boundary_Amplitude, propagation_direction, boundary_phase, Settings, Domains, current_layer, wavelengths,wavelength_index,branches)
+        E_domains,branches = at_boundary(E_domains, transmit_Amplitude, propagation_direction, transmit_phase, Settings, Domains, current_layer, wavelengths,wavelength_index,branches)
     #   reflection
-        branches = branches + 1
+        branches += 1
         propagation_direction = -propagation_direction                          #then, reverse direction
-        current_layer = current_layer + propagation_direction                   #then, iterate direction backwards
+        current_layer += propagation_direction                   #then, iterate direction backwards
         if n_from < n_to:
-            boundary_phase = boundary_phase + 0.5
-        E_domains, reflect_Amplitude, reflect_phase = calc_E_through_layer(E_domains, position_resolution, reflected_Amplitude, propagation_direction,boundary_phase,Domains,current_layer,wavelengths,wavelength_index)
-        E_domains,branches = at_boundary(sensitivity, E_domains, position_resolution, reflect_Amplitude, propagation_direction, reflect_phase, Domains, current_layer, wavelengths,wavelength_index,branches)
+            boundary_phase += 0.5
+        #                                                                   E_all,          Amplitude,          direction,          phase,      Domains,    layer,    Settings, wavelengths, wavelength_index
+        E_domains, reflect_Amplitude, reflect_phase = calc_E_through_layer(E_domains, reflected_Amplitude, propagation_direction,boundary_phase,Domains,current_layer,Settings, wavelengths, wavelength_index)
+        #                               (E_domains, boundary_Amplitude, propagation_direction, boundary_phase, Settings, Domains, current_layer, wavelengths,wavelength_index,branches)
+        E_domains,branches = at_boundary(E_domains, reflect_Amplitude, propagation_direction, reflect_phase, Settings, Domains, current_layer, wavelengths,wavelength_index,branches)
     return E_domains,branches
 
-def get_I_T_R(I_domains, position_resolution, Domains):
-    nx = position_resolution
+def get_I_T_R(I_domains, Settings, Domains):
+    nx = Settings.position_resolution
     I_Reflected = max(I_domains[0:nx])
-    I_Transmitted = max(I_domains[(len(Domains)-1)*nx:len(Domains)*nx])
+    I_Transmitted = max(I_domains[(Domains.layer_count-2)*nx:(Domains.layer_count-1)*nx])
     return I_Transmitted,I_Reflected
 
-def make_x_axis(resolution):
-    nx = resolution
-    x_all = np.zeros(1)
-    x_starts = [0]
+def get_emissivity_lambda(Domains, Settings, wavelengths, wavelength_resolution):
+    emissivity_lambda = np.ones(wavelength_resolution)
 
-    d=0
-    for domain in Domains:
-        x_min = 0
-        x_max = domain[0]
-        x = np.linspace(x_min,x_max, nx)
-
-        hx = (x_max - x_min)/(nx-1)
-        x_starts.append(x_max+x_starts[d]) # sets the start of the next values of x in the x_all list
-        
-        x_all = np.append(x_all, x+x_starts[d])
-        d=d+1
-
-    x_all = np.delete(x_all, 0)
-    return x_all
-
-x_domains = make_x_axis(position_resolution)
-emissivity_lambda = np.ones(wavelength_resolution)
-
-sensitivity = 10**-3
-
-for k in range(wavelength_resolution):
+    x_domains = Domains.Xaxis
     E_domains = np.zeros(len(x_domains))
-    wavelength_index = k
+    for k in range(wavelength_resolution):
+        propagation_direction = 1       # +/- 1 depending on the direction of the light propagation
+        propagation_phase = 0           # Initial phase of the incident wave where the air boundary begins
+        current_layer = 0               # Initial layer of the incident wave
 
-    propagation_direction = 1       # +/- 1 depending on the direction of the light propagation
-    propagation_phase = 0           # Initial phase of the incident wave where the air boundary begins
-    current_layer = 0               # Initial layer of the incident wave
-
-    # Sensitivity should depend on the input amplitude, and thus is actually a measured of % accuracy:
-    Amplitude_sensitivity = Amplitude*sensitivity
-
-    branches = 0                    # Testing variable that allows you to count the number of times E is calculated through a material.
-                                    # Along with position_resolution, this determines the computational complexity of the program.
-
-
-    # Starting with transmission through air alone actually allows me to get the phase and amplitude of the wave at the material without
-    #   having to inlcude it in the final intensity.
-    E_domains2, resulting_Amplitude, resulting_phase = calc_E_through_layer(E_domains, position_resolution, Amplitude, propagation_direction,propagation_phase,Domains,current_layer,wavelengths,wavelength_index)
-    E_domains_recursion,branches = at_boundary(Amplitude_sensitivity, E_domains, position_resolution, resulting_Amplitude, propagation_direction, resulting_phase, Domains, current_layer, wavelengths,wavelength_index,branches)
-    I_domains_recursion = E_domains_recursion**2
-    T_total, R_total = get_I_T_R(I_domains_recursion,position_resolution, Domains)
-    emissivity_lambda[k] = get_emissivity(T_total, R_total)
-
-
+        branches = 0
+        #                                                                           E_all,              Amplitude,              direction,          phase,      Domains, layer,      Settings, wavelengths, wavelength_index
+        E_domains2, resulting_Amplitude, resulting_phase = calc_E_through_layer(E_domains, Settings.initial_Amplitude, propagation_direction,propagation_phase,Domains,current_layer,Settings, wavelengths,k)
+        #                                           (E_domains, boundary_Amplitude, propagation_direction, boundary_phase, Settings, Domains, current_layer, wavelengths,wavelength_index,branches)
+        E_domains_recursion,branches = at_boundary(E_domains, resulting_Amplitude, propagation_direction, resulting_phase, Settings, Domains, current_layer, wavelengths,k,branches)
+        I_domains_recursion = E_domains_recursion**2
+        print("Done " + str(k) + "/" + str(wavelength_resolution) + " wavelength"+ printPlural(wavelength_resolution)+ " with " +str(branches)+" branche"+ printPlural(branches)+".")
+        T_total, R_total = get_I_T_R(I_domains_recursion, Settings, Domains)
+        emissivity_lambda[k] = get_emissivity(T_total, R_total)
+    return emissivity_lambda
 
 def get_emissivity_T(emissivity_lambda, wavelengths,T):
     dlambda = wavelengths[1]-wavelengths[0]
@@ -536,12 +527,24 @@ def get_emissivity_T(emissivity_lambda, wavelengths,T):
         integral1 = integral1 + Blackbody*emissivity_lambda[k]*dlambda
         integral2 = integral2 + Blackbody*dlambda
     emissivity_T = integral1/integral2
+
+    print("\nemissivity at " + str(T-get_Kelvin(0)) + " C is " + str(round(emissivity_T,5)))
+
     return emissivity_T
 
 
+emissivity_lambda = get_emissivity_lambda(Domains, Settings, wavelengths, wavelength_resolution)
+
+Timer.timeTaken('emissivity_lambda calculation')
+
+Temperature = get_Kelvin(150) # in Celsius
+emissivity_T = get_emissivity_T(emissivity_lambda,wavelengths,Temperature)
+
 Temperature = get_Kelvin(300) # in Celsius
 emissivity_T = get_emissivity_T(emissivity_lambda,wavelengths,Temperature)
-print(round(emissivity_T,5))
+
+Temperature = get_Kelvin(450) # in Celsius
+emissivity_T = get_emissivity_T(emissivity_lambda,wavelengths,Temperature)
 
 def axis_lim(array,min,max,second_array):
     # Inputs:
@@ -573,7 +576,7 @@ plt.ylim(0,1)
 plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputEmissivity2.png')
 plt.clf()
 
-"""plt.plot(wavelengths,Al2O3_k)
-plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputEmissivity2.png')
-plt.clf()"""
+Al2O3.plot_material_property('k',wavelengths)
+
+Timer.printTimes()
 
