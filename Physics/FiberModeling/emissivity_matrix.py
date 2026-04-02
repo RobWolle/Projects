@@ -121,11 +121,6 @@ def get_R(n, k):
     R =  ((n-1)**2 + k**2)/((n+1)**2+k**2)
     return R
 
-def get_R(nfrom,nto,k=0):
-    Rn = (nfrom-nto)**2 + k**2
-    Rd = (nfrom+nto)**2 + k**2
-    return Rn/Rd
-
 
 def get_T(k, wavelengths_array, thickness):
     T = np.exp(-4*np.pi*k*thickness/wavelengths_array)
@@ -162,22 +157,17 @@ def make_DataArray(delimiter, data_columns, data_start, file_path):
         data_organized.append(data_values[row*data_columns:(row+1)*data_columns])
     return data_organized
 
-def LERP(array, repeats = 1):
+def LERP(array):
     # Creates an array where new values are added between the input array values via averages.
-    if repeats == 0:
-        return array
+    new_length = len(array)*2-1
+    new_array = np.zeros(new_length)
+    i = 0
 
-    for s in range(repeats):
-        new_length = len(array)*2-1
-        new_array = np.zeros(new_length)
-        
-        i = 0
-        while i < len(array)-1:
-            new_array[i*2] = array[i]
-            new_array[i*2+1] = (array[i]+array[i+1])/2
-            i = i+1
-        new_array[new_length-1] = array[len(array)-1]
-        array = np.ndarray.copy(new_array)
+    while i < len(array)-1:
+        new_array[i*2] = array[i]
+        new_array[i*2+1] = (array[i]+array[i+1])/2
+        i = i+1
+    new_array[new_length-1] = array[len(array)-1]
     return new_array
 
 Timer = Timer()
@@ -194,19 +184,6 @@ TiN_n = DataArray[:,1]
 TiN_k = DataArray[:,2]
 Al2O3_n = DataArray[:,4]
 Al2O3_k = DataArray[:,5]
-
-# If LERP is desired, do it here.
-# "repeats" determines how many LERPs are performed. 
-#    repeats = 0 means there is no LERP
-#    repeats = 1 means there is 1 LERP
-#    repeats > 1 means there are # repeats LERPs performed
-
-repeats = 3
-wavelengths = LERP(wavelengths,repeats)
-TiN_n = LERP(TiN_n,repeats)
-TiN_k = LERP(TiN_k,repeats)
-Al2O3_n = LERP(Al2O3_n,repeats)
-Al2O3_k = LERP(Al2O3_k,repeats)
 
 wavelength_resolution = len(wavelengths)
 
@@ -271,12 +248,15 @@ class Material:
         material.name = name
         material.n = n
         material.k = k
+        material.R = ((n-1)**2 + k**2)/((n+1)**2+k**2)
 
     def plot_material_property(material, property, wavelengths):
         if property == 'n':
             y = material.n
         elif property == 'k':
             y = material.k
+        elif property == 'R':
+            y = material.R
         else:
             print("Material.plot_material_property() failed. The only valid property names are 'n', 'k', and 'R'.")
             return
@@ -300,6 +280,7 @@ class Domains:
         self.bulk_thickness = 0
         self.total_thickness = 0
         self.Xaxis = 'The Xaxis has not been made yet. Create a Settings object before retrieving this array.'
+        self.layer_hx = []
 
     def info(self):
         print("This set of domains has " + str(self.layer_count) + " total layer" + printPlural(self.layer_count) + ":")
@@ -371,14 +352,21 @@ class Domains:
         elif property == 'k':
             desired_layer_k = desired_layer_material.k
             return desired_layer_k[wavelength_index]
+        elif property == 'R':
+            desired_layer_R = desired_layer_material.R
+            return desired_layer_R[wavelength_index]
+        elif property == 'hx':
+            desired_layer_hx = self.layer_hx[layer_number]
+            return desired_layer_hx
         else:
-            print("Domains.getLayer_property() failed. The only valid property names are 'thickness', 'n', and 'k'.")
+            print("Domains.getLayer_property() failed. The only valid property names are 'thickness', 'n', 'k', 'hx', and 'R'.")
     
     def makeXaxis(self, resolution):
         nx = resolution
         x_all = np.zeros(1)
         x_starts = [0]
 
+        
         for d in range(self.layer_count):
             x_min = 0
             x_max = self.getLayer_property(d,'thickness')
@@ -387,9 +375,34 @@ class Domains:
             
             x_all = np.append(x_all, x+x_starts[d])
 
+            self.layer_hx.append((x_max - x_min)/(nx-1))
+
         x_all = np.delete(x_all, 0)
         self.Xaxis = x_all
         return self.Xaxis
+    
+    
+    def nanoLaminate(self,proportions,layer_counts, Air, dielectric, metal):
+        self.AddMeasureLayer(wavelengths, Air)
+
+        for i in range(len(layer_counts)):
+            self.AddLayer((1-proportions[i])*10**-7, dielectric)
+            self.AddLayer(proportions[i]*10**-7, metal)
+            self.RepeatAdd(layer_counts[i]-1)
+    
+        self.AddMeasureLayer(wavelengths, Air)
+
+    def clr(self):
+        self.layer_count = 0
+        self.domains = []
+        self.blocks = [[0,0]]
+        self.latest_block = 0
+        self.measure_layer_count = 0
+        self.measure_thickness = 0
+        self.bulk_thickness = 0
+        self.total_thickness = 0
+        self.Xaxis = 'The Xaxis has not been made yet. Create a Settings object before retrieving this array.'
+        print("All layers cleared from this domain.")
 
 
 Air = Material('Air',Air_n,Air_k)
@@ -397,21 +410,28 @@ Al2O3 = Material('Al2O3',Al2O3_n,Al2O3_k)
 TiN = Material('TiN',TiN_n,TiN_k)
 
 Domains = Domains()
-Domains.AddMeasureLayer(wavelengths, Air)
-Domains.AddLayer(.8*10**-7, Al2O3)
-Domains.AddLayer(.2*10**-7, TiN)
-Domains.RepeatAdd(7)
-Domains.AddLayer(.7*10**-7, Al2O3)
-Domains.AddLayer(.3*10**-7, TiN)
-Domains.RepeatAdd(4)
-Domains.AddLayer(.5*10**-7, Al2O3)
-Domains.AddLayer(.5*10**-7, TiN)
-Domains.RepeatAdd(9)
-Domains.AddMeasureLayer(wavelengths, Air)
+
+
+proportion_metal = [0.2,0.3,0.5]
+layer_counts = [8,5,10]
+Domains.nanoLaminate(proportion_metal,layer_counts,Air,Al2O3,TiN)
 
 Domains.info()
+Domains.clr()
 
-Timer.timeTaken('Domains')
+Domains.AddMeasureLayer(wavelengths, Air)
+Domains.AddLayer(10*10**-7, Air)
+Domains.AddLayer(.8*10**-7, Al2O3)
+Domains.AddLayer(.2*10**-7, TiN)
+
+Timer.timeTaken('Building Domains')
+
+
+Amplitude = 1               # Constant amplitude of intitial signal. 
+position_resolution = 51 
+sensitivity = 10**-4
+Settings = Settings(Amplitude, position_resolution, sensitivity, Domains)
+
 
 
 
@@ -442,11 +462,6 @@ It seems like wavelength_resolution should be contained in Settings,
         3. wavelength_resolution
 """
 
-
-Amplitude = 1               # Constant amplitude of intitial signal. 
-position_resolution = 51 
-sensitivity = 10**-4
-Settings = Settings(Amplitude, position_resolution, sensitivity, Domains)
 
 
 def calc_E_through_layer(E_all, Amplitude, direction, phase, Domains, layer, Settings, wavelengths, wavelength_index):
@@ -483,18 +498,14 @@ def calc_E_through_layer(E_all, Amplitude, direction, phase, Domains, layer, Set
 
 def at_boundary(E_domains, boundary_Amplitude, propagation_direction, boundary_phase, Settings, Domains, current_layer, wavelengths,wavelength_index,branches):
     n_from = Domains.getLayer_property(current_layer, 'n',wavelength_index)
-            #k_from = Domains.getLayer_property(current_layer, 'k',wavelength_index)
     current_layer += propagation_direction
     # if (condition that allows transmission):
     if current_layer >= 0 and current_layer < Domains.layer_count-1 and boundary_Amplitude > Settings.sensitivity:
         n_to = Domains.getLayer_property(current_layer, 'n',wavelength_index)
-                #k_to = Domains.getLayer_property(current_layer, 'k',wavelength_index)
     #   transmission
         branches += 1
-        R = get_R(n_from,n_to)
-        # As far as I can tell, T = (boundary intensity - R), and square root of intensity = E_amplitude
-        reflected_Amplitude = boundary_Amplitude*np.sqrt(R)  #first, set intensity of reflection when hitting the layer boundary
-        #print(R)
+        # As far as I can tell, T = (boundary intensity - R)
+        reflected_Amplitude = boundary_Amplitude*Domains.getLayer_property(current_layer, 'R',wavelength_index)  #first, set intensity of reflection when hitting the layer boundary
         transmitted_Amplitude = boundary_Amplitude - reflected_Amplitude
         #                                                                   E_all,          Amplitude,          direction,          phase,      Domains,    layer,    Settings, wavelengths, wavelength_index
         E_domains, transmit_Amplitude, transmit_phase = calc_E_through_layer(E_domains, transmitted_Amplitude, propagation_direction,boundary_phase,Domains,current_layer,Settings, wavelengths,wavelength_index)
@@ -593,11 +604,82 @@ def axis_lim(array,min,max,second_array):
 
 x,y = axis_lim(wavelengths,wavelengths[0],20*10**-6,emissivity_lambda)
 plt.plot(x*10**6,y)
-#plt.ylim(0,1)
+plt.ylim(0,1)
 plt.savefig('/workspaces/Projects/Physics/FiberModeling/outputEmissivity2.png')
 plt.clf()
 
 Al2O3.plot_material_property('k',wavelengths)
 
 Timer.printTimes()
+
+
+"""
+DIFFERENTIAL EQUATIONS APPROACH
+
+
+ - n,k,h per layer
+"""
+ 
+def makeLinearEqSystem(Domains,Settings, wavelengths,wavelength_index):
+    nx_total = len(Domains.Xaxis)
+    nx = Settings.position_resolution
+    layer_count = Domains.layer_count - 1
+
+    A = np.zeros([nx_total,nx_total])
+    
+    #layer 1:
+    hx = Domains.getLayer_property(0,'hx')
+    n  = Domains.getLayer_property(0,'n',wavelength_index)
+    k  = Domains.getLayer_property(0,'k',wavelength_index)
+    N  = 2*np.pi*n/wavelengths[wavelength_index]
+    K  = 2*np.pi*k/wavelengths[wavelength_index]
+
+    A[0,0] += -1+hx**2
+    A[0,2] += 1
+    for i in range(1,nx):
+        A[i,i-1] += 1
+        A[i,i]   += -2 + hx**2*(N**2 - K**2)
+        A[i,i+1] += 1
+    
+    #middle layers
+    for d in range(1,layer_count-1):
+        hx = Domains.getLayer_property(d,'hx')
+        n  = Domains.getLayer_property(d,'n',wavelength_index)
+        k  = Domains.getLayer_property(d,'k',wavelength_index)
+        N  = 2*np.pi*n/wavelengths[wavelength_index]
+        K  = 2*np.pi*k/wavelengths[wavelength_index]
+        for i in range(d*nx,(d+1)*nx):
+            A[i,i-1] += 1
+            A[i,i]   += -2 + hx**2*(N**2 - K**2)
+            A[i,i+1] += 1
+    
+
+    #last layer
+    Domains.info()
+    print(nx_total)
+    print(Domains.layer_count)
+    print(nx*layer_count)
+    print(layer_count)
+    hx = Domains.getLayer_property(layer_count,'hx')
+    n  = Domains.getLayer_property(layer_count,'n',wavelength_index)
+    k  = Domains.getLayer_property(layer_count,'k',wavelength_index)
+    N  = 2*np.pi*n/wavelengths[wavelength_index]
+    K  = 2*np.pi*k/wavelengths[wavelength_index]
+
+    for i in range(layer_count*nx,(layer_count+1)*nx-1):
+        A[i,i-1] += 1
+        A[i,i]   += -2 + hx**2*(N**2 - K**2)
+        A[i,i+1] += 1
+    A[nx_total-1,nx_total-1] += -1+hx**2
+    A[nx_total-1,nx_total-3] +=  1
+    
+    #initial conditions:
+    F = np.zeros(nx_total)
+    F[0] = hx**2*Settings.initial_Amplitude
+
+    return A,F
+
+A,F = makeLinearEqSystem(Domains,Settings,wavelengths,0)
+
+
 
