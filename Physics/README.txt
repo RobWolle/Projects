@@ -1,5 +1,12 @@
 This folder contains scripts for various simulations of physical systems.
 
+Light-and-Materials
+  Contains programs which simulate interactions between light and user-input materials. These programs can calculate emissivity, 
+  help design anti-reflective coatings, and simulate internal reflections in highly complex coating designs.
+
+FiberModeling
+  Contains programs which model the modes and features of fiber optic waveguides depending on input parameters.
+
 PeakFitting
   Contains programs which load input data with arbritary delimitters, column, and row counts, plot that data, and plot 
   user-input peaks (either Lorentzian or Gaussian) + background noise found to match the data. Currently working on a program 
