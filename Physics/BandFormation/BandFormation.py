@@ -58,7 +58,6 @@ def integral(interval, function, range_settings):
 """
 # Position of each ion site in Angstroms:
 proton_positions   =  [-0.5*a,0.5*a]
-proton_positions   =  [0]
 # The sign of each wavefunction (+/-1):
 wavefunction_signs =  [1,-1,1,-1,-1,1]   # The number of entries doesn't have to equal the number of protons
 
